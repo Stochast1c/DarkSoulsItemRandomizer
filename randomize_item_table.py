@@ -12,6 +12,8 @@ import chr_init_param as cip
 
 import copy
 
+import ini_parser
+INI_FILE = "randomizer.ini"
 
 def make_difficulty_order_dict(rng_diff, item_diff):
     if item_diff == item_s.ITEM_DIF.SMALL_SOUL:
@@ -381,7 +383,7 @@ def place_starting_equipment(table, data_passed_from_chr_init, item_list):
                 for item_part in item_parts_to_place:
                     table.place_itemlotpart_at_location(item_part, location_id, item_list)
                 
-def build_table(rand_options, random_source, chr_init_data):
+def build_table(rand_options, random_source, chr_init_data, testing=False):
     # Create a deep copy of the list of items to be modified for this table.
     item_list = copy.deepcopy(item_s.ITEMS)
     
@@ -394,48 +396,48 @@ def build_table(rand_options, random_source, chr_init_data):
     chr_s.randomize_chr_armor(given_cip, rand_options, random_source)
     data_passed_from_chr_init = chr_s.randomize_starting_chr_weapons(given_cip, rand_options, random_source)
     
-    for chr_init in given_cip.chr_inits:
-        print(chr_init.to_string())
+    #for chr_init in given_cip.chr_inits:
+    #    print(chr_init.to_string())
     
     table = item_t.ItemTable(copy.deepcopy(loc_s.LOCATIONS), copy.deepcopy(shop_s.DEFAULT_SHOP_DATA))
-    place_ignored_items(table, item_list)
-    place_upgrade_items(table, random_source, item_list)
-    place_key_items(table, rand_options, random_source, item_list)
-    place_starting_equipment(table, data_passed_from_chr_init, item_list)
-    place_non_key_fixed_items(table, rand_options, random_source, item_list)
-    table.fix_pickup_flags()
+    if testing:     #only care about key item locations 
+        place_key_items(table, rand_options, random_source, item_list)
+    else:
+        place_ignored_items(table, item_list)
+        place_upgrade_items(table, random_source, item_list)
+        place_key_items(table, rand_options, random_source, item_list)
+        place_starting_equipment(table, data_passed_from_chr_init, item_list)
+        place_non_key_fixed_items(table, rand_options, random_source, item_list)
+        table.fix_pickup_flags()
     return (table, given_cip)
-                
-if __name__ == "__main__":
+
+def load_options_from_ini():
+    init_options = ini_parser.get_values_from_ini(INI_FILE, section="DEFAULT")     #load ini file
+    options = {}
+    for k in init_options:
+        options[k] = ini_parser.get_option_value(init_options, k)    
+
+    return rng_opt.RandomizerOptions(**options)
+
+def testing(seed):
     import random 
     import sys
     
-    if len(sys.argv) < 2:
-        print("Usage: " + str(sys.argv[0]) + " <seed>")
-        sys.exit(1)
-    
-    seed = sys.argv[1]
-    
     #logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     logging.basicConfig(stream=sys.stdout, level=logging.WARN)
-    options = rng_opt.RandomizerOptions(
-      rng_opt.RandOptDifficulty.EASY, 
-      True, 
-      rng_opt.RandOptKeyDifficulty.SPEEDRUN_MODE, 
-      True, 
-      True,
-      rng_opt.RandOptSoulItemsDifficulty.SHUFFLE,
-      rng_opt.RandOptStartItemsDifficulty.COMBINED_POOL_AND_2H,
-      rng_opt.RandOptGameVersion.PTDE,
-      False)
     
+    options = load_options_from_ini()
+   
     rng = random.Random()
     rng.seed(seed)
-    (table, _) = build_table(options, rng)
+    (table, _) = build_table(options, rng, None, testing=True)
+
+    return (table.key_locs)     #for statistics
+
     #result_ilp = table.build_itemlotparam()
     #result_slp = table.build_shoplineup()
     #cheat_string = table.build_cheatsheet(show_event_flags = True)
-    hint_string = table.build_hintsheet()
+    #hint_string = table.build_hintsheet()
     #ilp_binary_export = result_ilp.export_as_binary()
     #slp_binary_export = result_slp.export_as_binary()
     
@@ -460,8 +462,17 @@ if __name__ == "__main__":
     #sys.stdout.write(options.as_string())
     #sys.stdout.flush()
     
-    sys.stdout.write(hint_string)
+    #sys.stdout.write(hint_string)
     #sys.stdout.write(ilp_binary_export)
     #sys.stdout.write(slp_binary_export)
     #sys.stdout.flush()
+                
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("Usage: " + str(sys.argv[0]) + " <seed>")
+        sys.exit(1)
+    
+    seed = sys.argv[1]
 
+    testing(seed)
